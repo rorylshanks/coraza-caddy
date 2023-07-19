@@ -112,7 +112,6 @@ func (m corazaModule) ServeHTTP(w http.ResponseWriter, r *http.Request, next cad
 
 	repl := r.Context().Value(caddy.ReplacerCtxKey).(*caddy.Replacer)
 	repl.Set("http.transaction_id", id)
-
 	// ProcessRequest is just a wrapper around ProcessConnection, ProcessURI,
 	// ProcessRequestHeaders and ProcessRequestBody.
 	// It fails if any of these functions returns an error and it stops on interruption.
@@ -130,14 +129,16 @@ func (m corazaModule) ServeHTTP(w http.ResponseWriter, r *http.Request, next cad
 		}
 	}
 
-	ww, processResponse := wrap(w, r, tx)
+	// ww, processResponse := wrap(w, r, tx)
 
 	// We continue with the other middlewares by catching the response
-	if err := next.ServeHTTP(ww, r); err != nil {
-		return err
-	}
+	// if err := next.ServeHTTP(ww, r); err != nil {
+	// 	return err
+	// }
 
-	return processResponse(tx, r)
+	return next.ServeHTTP(w, r);
+
+	// return processResponse(tx, r)
 }
 
 // Unmarshal Caddyfile implements caddyfile.Unmarshaler.
