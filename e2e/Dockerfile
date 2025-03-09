@@ -1,6 +1,9 @@
+# Copyright 2024 The OWASP Coraza contributors
+# SPDX-License-Identifier: Apache-2.0
+
 FROM debian
 
-COPY example/Caddyfile /etc/caddy/Caddyfile
+COPY e2e/Caddyfile /etc/caddy/Caddyfile
 
 COPY build/caddy-linux /usr/bin/caddy
 

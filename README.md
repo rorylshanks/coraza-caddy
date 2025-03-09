@@ -15,8 +15,9 @@ OWASP Coraza WAF is 100% compatible with OWASP Coreruleset and Modsecurity synta
 ```bash
 ▶ go run mage.go -l
 Targets:
-  build              builds the plugin.
-  buildLinux         builds the plugin with GOOS=linux.
+  buildCaddy        builds the plugin.
+  buildCaddyLinux   builds the plugin with GOOS=linux.
+  buildExample       builds the example deployment.
   check              runs lint and tests.
   coverage           runs tests with coverage and race detector enabled.
   doc                runs godoc, access at http://localhost:6060
@@ -84,7 +85,7 @@ go run mage.go test
 
 ## Using OWASP Core Ruleset
 
-You can load OWASP CRS by passing the field `load_owasp_crs` and then load the CRS files in the directives as described in the [coraza-coreruleset](https://github.com/corazawaf/coraza-coreruleset) documentation.
+You can load OWASP CRS by passing the field `load_owasp_crs` and then load the CRS files in the directives as described in the [coraza-coreruleset](https://github.com/corazawaf/coraza-coreruleset/v4) documentation.
 
 ```caddy
 :8080 {
@@ -124,3 +125,27 @@ go run mage.go buildCaddy
 # in terminal 3
 curl -i localhost:8080/
 ```
+
+## Respond with custom message or HTML page
+
+In order to respond with a custom message or HTML page, you can take advantage of [handle_errors](https://caddyserver.com/docs/caddyfile/directives/handle_errors) directive:
+
+```caddy
+handle_errors 403 {
+ header X-Blocked "true"
+ respond "Your request was blocked. Request ID: {http.request.header.x-request-id}"
+}
+```
+or
+```caddy
+handle_errors {
+ @block_codes `{err.status_code} in [403]`
+ handle @block_codes {
+  root    * /path/to/html/dir
+  rewrite * /{err.status_code}.html
+  file_server
+ }
+}
+```
+
+It is possible to use the [templates](https://caddyserver.com/docs/caddyfile/directives/templates) directive to render data dynamically. Take a look at [`example/403.html`](./example/403.html) file.  

@@ -18,7 +18,7 @@ import (
 )
 
 var addLicenseVersion = "v1.0.0" // https://github.com/google/addlicense
-var golangCILintVer = "v1.48.0"  // https://github.com/golangci/golangci-lint/releases
+var golangCILintVer = "v1.62.0"  // https://github.com/golangci/golangci-lint/releases
 var gosImportsVer = "v0.1.5"     // https://github.com/rinchsan/gosimports/releases/tag/v0.1.5
 
 var errRunGoModTidy = errors.New("go.mod/sum not formatted, commit changes")
@@ -70,30 +70,46 @@ func Test() error {
 	return nil
 }
 
-// E2e runs e2e tests with a built plugin against the example deployment. Requires docker-compose.
+// E2e runs e2e tests with a built plugin against the e2e deployment. Requires docker.
 func E2e() error {
 	var err error
-	if err = sh.RunV("docker-compose", "-f", "e2e/docker-compose.yml", "up", "--abort-on-container-exit", "tests"); err != nil {
-		sh.RunV("docker-compose", "-f", "e2e/docker-compose.yml", "logs", "caddy")
-	}
-
-	return err
-}
-
-// Ftw runs CRS regressions tests. Requires docker-compose.
-func Ftw() error {
-	if err := sh.RunV("docker-compose", "--file", "ftw/docker-compose.yml", "build", "--pull"); err != nil {
+	if err = sh.RunV("docker", "compose", "-f", "e2e/docker-compose.yml", "up", "-d", "caddy"); err != nil {
 		return err
 	}
 	defer func() {
-		_ = sh.RunV("docker-compose", "--file", "ftw/docker-compose.yml", "down", "-v")
+		_ = sh.RunV("docker", "compose", "--file", "e2e/docker-compose.yml", "down", "-v")
+	}()
+
+	caddyHost := os.Getenv("CADDY_HOST")
+	if caddyHost == "" {
+		caddyHost = "localhost:8080"
+	}
+	httpbinHost := os.Getenv("HTTPBIN_HOST")
+	if httpbinHost == "" {
+		httpbinHost = "localhost:8081"
+	}
+
+	if err = sh.RunV("go", "run", "github.com/corazawaf/coraza/v3/http/e2e/cmd/httpe2e@main", "--proxy-hostport", "http://"+caddyHost, "--httpbin-hostport", "http://"+httpbinHost); err != nil {
+		sh.RunV("docker", "compose", "-f", "e2e/docker-compose.yml", "logs", "caddy")
+	}
+	return err
+}
+
+// Ftw runs CRS regressions tests. Requires docker.
+func Ftw() error {
+	if err := sh.RunV("docker", "compose", "--file", "ftw/docker-compose.yml", "build", "--pull"); err != nil {
+		return err
+	}
+	defer func() {
+		_ = sh.RunV("docker", "compose", "--file", "ftw/docker-compose.yml", "down", "-v")
 	}()
 	env := map[string]string{
 		"FTW_CLOUDMODE": os.Getenv("FTW_CLOUDMODE"),
 		"FTW_INCLUDE":   os.Getenv("FTW_INCLUDE"),
 	}
+
 	task := "ftw"
-	return sh.RunWithV(env, "docker-compose", "--file", "ftw/docker-compose.yml", "run", "--rm", task)
+	return sh.RunWithV(env, "docker", "compose", "--file", "ftw/docker-compose.yml", "run", "--rm", task)
 }
 
 // Coverage runs tests with coverage and race detector enabled.
@@ -132,17 +148,21 @@ func Check() {
 	mg.SerialDeps(Lint, Test)
 }
 
-// Build builds the plugin.
+// BuildCaddy builds the plugin.
 func BuildCaddy() error {
 	return buildCaddy("")
 }
 
-// BuildLinux builds the plugin with GOOS=linux.
+// BuildCaddyLinux builds the plugin with GOOS=linux.
 func BuildCaddyLinux() error {
 	return buildCaddy("linux")
 }
 
 func buildCaddy(goos string) error {
+	if err := sh.Run("which", "xcaddy"); err != nil {
+		return errors.New("xcaddy not found, install it with 'go install github.com/caddyserver/xcaddy/cmd/xcaddy'")
+	}
+
 	env := map[string]string{}
 	buildDir := "build/caddy"
 	if goos != "" {
@@ -160,23 +180,23 @@ func buildCaddy(goos string) error {
 	return sh.RunWithV(env, "xcaddy", buildArgs...)
 }
 
-// BuildExample builds the example deployment. Requires docker-compose.
+// BuildExample builds the example deployment. Requires docker.
 func BuildExample() error {
 	mg.SerialDeps(BuildCaddyLinux)
-	return sh.RunV("docker-compose", "--file", "example/docker-compose.yml", "build", "--no-cache", "caddy")
+	return sh.RunV("docker", "compose", "--file", "example/docker-compose.yml", "build", "--no-cache", "caddy")
 }
 
-// RunExample spins up the test environment, access at http://localhost:8080. Requires docker-compose.
+// RunExample spins up the test environment, access at http://localhost:8080. Requires docker.
 func RunExample() error {
-	return sh.RunV("docker-compose", "--file", "example/docker-compose.yml", "up", "-d", "caddy-logs")
+	return sh.RunV("docker", "compose", "--file", "example/docker-compose.yml", "up", "-d", "caddy")
 }
 
-// TeardownExample tears down the test environment. Requires docker-compose.
+// TeardownExample tears down the test environment. Requires docker.
 func TeardownExample() error {
-	return sh.RunV("docker-compose", "--file", "example/docker-compose.yml", "down")
+	return sh.RunV("docker", "compose", "--file", "example/docker-compose.yml", "down")
 }
 
-// ReloadExample reload the test environment. Requires docker-compose.
+// ReloadExample reload the test environment. Requires docker.
 func ReloadExample() error {
-	return sh.RunV("docker-compose", "--file", "example/docker-compose.yml", "restart")
+	return sh.RunV("docker", "compose", "--file", "example/docker-compose.yml", "restart")
 }
